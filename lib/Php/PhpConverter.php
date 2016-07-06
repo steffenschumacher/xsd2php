@@ -1,4 +1,5 @@
 <?php
+
 namespace Goetas\Xsd\XsdToPhp\Php;
 
 use Exception;
@@ -21,13 +22,12 @@ use GoetasWebservices\XML\XSDReader\Schema\Type\BaseComplexType;
 use GoetasWebservices\XML\XSDReader\Schema\Type\ComplexType;
 use GoetasWebservices\XML\XSDReader\Schema\Type\SimpleType;
 use GoetasWebservices\XML\XSDReader\Schema\Type\Type;
+use Cocur\Slugify\Slugify;
 
-class PhpConverter extends AbstractConverter
-{
+class PhpConverter extends AbstractConverter {
 
-    public function __construct(NamingStrategy $namingStrategy)
-    {
-        parent::__construct($namingStrategy);
+    public function __construct(NamingStrategy $namingStrategy, $buildEnumClasses) {
+        parent::__construct($namingStrategy, $buildEnumClasses);
 
         $this->addAliasMap("http://www.w3.org/2001/XMLSchema", "dateTime", function (Type $type) {
             return "DateTime";
@@ -48,8 +48,7 @@ class PhpConverter extends AbstractConverter
 
     private $classes = [];
 
-    public function convert(array $schemas)
-    {
+    public function convert(array $schemas) {
         $visited = array();
         $this->classes = array();
         foreach ($schemas as $schema) {
@@ -62,8 +61,7 @@ class PhpConverter extends AbstractConverter
      *
      * @return PHPClass[]
      */
-    private function getTypes()
-    {
+    private function getTypes() {
         uasort($this->classes, function ($a, $b) {
             return strcmp($a["class"]->getFullName(), $b["class"]->getFullName());
         });
@@ -77,8 +75,7 @@ class PhpConverter extends AbstractConverter
         return $ret;
     }
 
-    private function navigate(Schema $schema, array &$visited)
-    {
+    private function navigate(Schema $schema, array &$visited) {
         if (isset($visited[spl_object_hash($schema)])) {
             return;
         }
@@ -98,8 +95,7 @@ class PhpConverter extends AbstractConverter
         }
     }
 
-    private function visitTypeBase(PHPClass $class, Type $type)
-    {
+    private function visitTypeBase(PHPClass $class, Type $type) {
         $class->setAbstract($type->isAbstract());
 
         if ($type instanceof SimpleType) {
@@ -113,8 +109,7 @@ class PhpConverter extends AbstractConverter
         }
     }
 
-    private function visitGroup(PHPClass $class, Schema $schema, Group $group)
-    {
+    private function visitGroup(PHPClass $class, Schema $schema, Group $group) {
         foreach ($group->getElements() as $childGroup) {
             if ($childGroup instanceof Group) {
                 $this->visitGroup($class, $schema, $childGroup);
@@ -125,8 +120,7 @@ class PhpConverter extends AbstractConverter
         }
     }
 
-    private function visitAttributeGroup(PHPClass $class, Schema $schema, AttributeGroup $att)
-    {
+    private function visitAttributeGroup(PHPClass $class, Schema $schema, AttributeGroup $att) {
         foreach ($att->getAttributes() as $childAttr) {
             if ($childAttr instanceof AttributeGroup) {
                 $this->visitAttributeGroup($class, $schema, $childAttr);
@@ -137,8 +131,7 @@ class PhpConverter extends AbstractConverter
         }
     }
 
-    private function visitElementDef(ElementDef $element)
-    {
+    private function visitElementDef(ElementDef $element) {
         if (!isset($this->classes[spl_object_hash($element)])) {
             $schema = $element->getSchema();
 
@@ -163,8 +156,7 @@ class PhpConverter extends AbstractConverter
         return $this->classes[spl_object_hash($element)]["class"];
     }
 
-    private function findPHPName(Type $type)
-    {
+    private function findPHPName(Type $type) {
         $schema = $type->getSchema();
 
         if ($className = $this->getTypeAlias($type)) {
@@ -200,8 +192,7 @@ class PhpConverter extends AbstractConverter
      * @param boolean $force
      * @return \Goetas\Xsd\XsdToPhp\Php\Structure\PHPClass
      */
-    private function visitType(Type $type, $force = false)
-    {
+    private function visitType(Type $type, $force = false) {
         if (!isset($this->classes[spl_object_hash($type)])) {
 
             $this->classes[spl_object_hash($type)]["class"] = $class = new PHPClass();
@@ -216,9 +207,13 @@ class PhpConverter extends AbstractConverter
             $class->setName($name);
             $class->setNamespace($ns);
 
-            $class->setDoc($type->getDoc() . PHP_EOL . "XSD Type: " . ($type->getName() ?: 'anonymous'));
+            $class->setDoc($type->getDoc() . PHP_EOL . "XSD Type: " . ($type->getName() ? : 'anonymous'));
 
             $this->visitTypeBase($class, $type);
+
+            if ($this->buildEnumClasses() && ( $restriction = $type->getRestriction() ) && $restriction->getChecksByType('enumeration')) {
+                return $class;
+            }
 
             if ($type instanceof SimpleType) {
                 $this->classes[spl_object_hash($type)]["skip"] = true;
@@ -244,8 +239,7 @@ class PhpConverter extends AbstractConverter
      * @param PHPClass $parentClass
      * @return \Goetas\Xsd\XsdToPhp\Php\Structure\PHPClass
      */
-    private function visitTypeAnonymous(Type $type, $name, PHPClass $parentClass)
-    {
+    private function visitTypeAnonymous(Type $type, $name, PHPClass $parentClass) {
         if (!isset($this->classes[spl_object_hash($type)])) {
             $this->classes[spl_object_hash($type)]["class"] = $class = new PHPClass();
             $class->setName($this->getNamingStrategy()->getAnonymousTypeName($type, $name));
@@ -262,8 +256,7 @@ class PhpConverter extends AbstractConverter
         return $this->classes[spl_object_hash($type)]["class"];
     }
 
-    private function visitComplexType(PHPClass $class, ComplexType $type)
-    {
+    private function visitComplexType(PHPClass $class, ComplexType $type) {
         $schema = $type->getSchema();
         foreach ($type->getElements() as $element) {
             if ($element instanceof Group) {
@@ -275,8 +268,7 @@ class PhpConverter extends AbstractConverter
         }
     }
 
-    private function visitSimpleType(PHPClass $class, SimpleType $type)
-    {
+    private function visitSimpleType(PHPClass $class, SimpleType $type) {
         if ($restriction = $type->getRestriction()) {
             $parent = $restriction->getBase();
 
@@ -286,7 +278,11 @@ class PhpConverter extends AbstractConverter
 
             foreach ($restriction->getChecks() as $typeCheck => $checks) {
                 foreach ($checks as $check) {
-                    $class->addCheck('__value', $typeCheck, $check);
+                    if ($typeCheck === 'enumeration') {
+                        $class->addConstant($this->createConstantNameFromValue($check['value']), $check['value']);
+                    } else {
+                        $class->addCheck('__value', $typeCheck, $check);
+                    }
                 }
             }
         } elseif ($unions = $type->getUnions()) {
@@ -305,8 +301,7 @@ class PhpConverter extends AbstractConverter
         }
     }
 
-    private function handleClassExtension(PHPClass $class, Type $type)
-    {
+    private function handleClassExtension(PHPClass $class, Type $type) {
 
         if ($alias = $this->getTypeAlias($type)) {
             $c = PHPClass::createFromFQCN($alias);
@@ -320,8 +315,7 @@ class PhpConverter extends AbstractConverter
         }
     }
 
-    private function visitBaseComplexType(PHPClass $class, BaseComplexType $type)
-    {
+    private function visitBaseComplexType(PHPClass $class, BaseComplexType $type) {
         $parent = $type->getParent();
         if ($parent) {
             $parentType = $parent->getBase();
@@ -341,8 +335,7 @@ class PhpConverter extends AbstractConverter
         }
     }
 
-    private function visitAttribute(PHPClass $class, Schema $schema, AttributeItem $attribute, $arrayize = true)
-    {
+    private function visitAttribute(PHPClass $class, Schema $schema, AttributeItem $attribute, $arrayize = true) {
         $property = new PHPProperty();
         $property->setName($this->getNamingStrategy()->getPropertyName($attribute));
 
@@ -370,8 +363,7 @@ class PhpConverter extends AbstractConverter
      * @param boolean $arrayize
      * @return \Goetas\Xsd\XsdToPhp\Structure\PHPProperty
      */
-    private function visitElement(PHPClass $class, Schema $schema, ElementSingle $element, $arrayize = true)
-    {
+    private function visitElement(PHPClass $class, Schema $schema, ElementSingle $element, $arrayize = true) {
         $property = new PHPProperty();
         $property->setName($this->getNamingStrategy()->getPropertyName($element));
         $property->setDoc($element->getDoc());
@@ -412,8 +404,7 @@ class PhpConverter extends AbstractConverter
         return $property;
     }
 
-    private function findPHPClass(PHPClass $class, Item $node, $force = false)
-    {
+    private function findPHPClass(PHPClass $class, Item $node, $force = false) {
 
         if ($node instanceof ElementRef) {
             return $this->visitElementDef($node->getReferencedElement());
@@ -425,4 +416,88 @@ class PhpConverter extends AbstractConverter
             return $this->visitType($node->getType(), $force);
         }
     }
+
+    /**
+     * @param $constantValue
+     *
+     * @return string
+     */
+    public function createConstantNameFromValue($constantValue) {
+        static $keywords = [
+            'abstract',
+            'and',
+            'array',
+            'as',
+            'break',
+            'callable',
+            'case',
+            'catch',
+            'class',
+            'clone',
+            'const',
+            'continue',
+            'declare',
+            'default',
+            'die',
+            'do',
+            'echo',
+            'else',
+            'elseif',
+            'empty',
+            'enddeclare',
+            'endfor',
+            'endforeach',
+            'endif',
+            'endswitch',
+            'endwhile',
+            'eval',
+            'exit',
+            'extends',
+            'final',
+            'for',
+            'foreach',
+            'function',
+            'global',
+            'goto',
+            'if',
+            'implements',
+            'include',
+            'include_once',
+            'instanceof',
+            'insteadof',
+            'interface',
+            'isset',
+            'list',
+            'namespace',
+            'new',
+            'or',
+            'print',
+            'private',
+            'protected',
+            'public',
+            'require',
+            'require_once',
+            'return',
+            'static',
+            'switch',
+            'throw',
+            'trait',
+            'try',
+            'unset',
+            'use',
+            'var',
+            'while',
+            'xor',
+        ];
+
+        $slugify = new Slugify();
+        $constantName = $slugify->slugify($constantValue, '_');
+        if (in_array($constantName, $keywords)) {
+            $constantName = $constantName . '_';
+        }
+        $constantName = strtoupper($constantName);
+
+        return $constantName;
+    }
+
 }

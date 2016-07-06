@@ -23,10 +23,10 @@ use GoetasWebservices\XML\XSDReader\Schema\Type\Type;
 class YamlConverter extends AbstractConverter
 {
 
-    public function __construct(NamingStrategy $namingStrategy)
+    public function __construct(NamingStrategy $namingStrategy, $buildEnumClasses)
     {
 
-        parent::__construct($namingStrategy);
+        parent::__construct($namingStrategy, $buildEnumClasses);
 
         $this->addAliasMap("http://www.w3.org/2001/XMLSchema", "dateTime", function (Type $type) {
             return "Goetas\Xsd\XsdToPhp\XMLSchema\DateTime";

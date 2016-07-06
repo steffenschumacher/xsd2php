@@ -23,9 +23,9 @@ class ConvertToYaml extends AbstractConvert
         $this->setDescription('Convert XSD definitions into YAML metadata for JMS Serializer');
     }
 
-    protected function getConverterter(NamingStrategy $naming)
+    protected function getConverter(NamingStrategy $naming, $buildEnumClasses)
     {
-        return new YamlConverter($naming);
+        return new YamlConverter($naming, $buildEnumClasses);
     }
 
     protected function convert(AbstractConverter $converter, array $schemas, array $targets, OutputInterface $output)

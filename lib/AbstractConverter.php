@@ -34,12 +34,18 @@ abstract class AbstractConverter
      */
     private $namingStrategy;
 
+    private $buildEnumClasses;
+    
     public abstract function convert(array $schemas);
 
     protected $typeAliases = array();
 
     protected $aliasCache = array();
 
+    protected function buildEnumClasses() {
+        return $this->buildEnumClasses;
+    }
+    
     public function addAliasMap($ns, $name, callable $handler)
     {
         $this->typeAliases[$ns][$name] = $handler;
@@ -65,9 +71,10 @@ abstract class AbstractConverter
         }
     }
 
-    public function __construct(NamingStrategy $namingStrategy)
+    public function __construct(NamingStrategy $namingStrategy, $buildEnumClasses)
     {
         $this->namingStrategy = $namingStrategy;
+        $this->buildEnumClasses = $buildEnumClasses;
 
         $this->addAliasMap("http://www.w3.org/2001/XMLSchema", "gYearMonth", function (Type $type) {
             return "integer";

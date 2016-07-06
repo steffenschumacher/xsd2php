@@ -5,6 +5,7 @@ use Doctrine\Common\Inflector\Inflector;
 use Goetas\Xsd\XsdToPhp\Php\Structure\PHPClass;
 use Goetas\Xsd\XsdToPhp\Php\Structure\PHPClassOf;
 use Goetas\Xsd\XsdToPhp\Php\Structure\PHPProperty;
+use Goetas\Xsd\XsdToPhp\Php\Structure\PhpConstant;
 use Zend\Code\Generator;
 use Zend\Code\Generator\DocBlock\Tag\ParamTag;
 use Zend\Code\Generator\DocBlock\Tag\PropertyTag;
@@ -19,6 +20,9 @@ class ClassGenerator
 
     private function handleBody(Generator\ClassGenerator $class, PHPClass $type)
     {
+        foreach ( $type->getConstants() as $const ) {
+            $this->handleConstant( $class, $const );
+        }
         foreach ($type->getProperties() as $prop) {
             if ($prop->getName() !== '__value') {
                 $this->handleProperty($class, $prop);
@@ -31,7 +35,10 @@ class ClassGenerator
         }
 
         if (count($type->getProperties()) === 1 && $type->hasProperty('__value')) {
-            return false;
+            if (!count($type->getConstants())) {
+                return false;
+            }
+            $class->removeMethod( '__construct' )->removeMethod( '__toString' )->removeMethod( 'value' );
         }
 
         return true;
@@ -389,6 +396,11 @@ class ClassGenerator
         $docBlock->setTag($tag);
     }
 
+    private function handleConstant( Generator\ClassGenerator $class, PhpConstant $const ) 
+    {
+        $class->addConstant( $const->getName(), $const->getValue() );
+    }
+
     public function generate(Generator\ClassGenerator $class, PHPClass $type)
     {
         $docblock = new DocBlockGenerator("Class representing " . $type->getName());
@@ -419,7 +431,6 @@ class ClassGenerator
                 }
             }
         }
-
         if ($this->handleBody($class, $type)) {
             return true;
         }

@@ -26,13 +26,14 @@ abstract class AbstractConvert extends Console\Command\Command
             new InputOption('ns-map', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'How to map XML namespaces to PHP namespaces? Syntax: <info>XML-namespace;PHP-namespace</info>'),
             new InputOption('ns-dest', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Where place the generated files? Syntax: <info>PHP-namespace;destination-directory</info>'),
             new InputOption('alias-map', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'How to map XML namespaces into existing PHP classes? Syntax: <info>XML-namespace;XML-type;PHP-type</info>. '),
-            new InputOption('naming-strategy', null, InputOption::VALUE_REQUIRED, 'The naming strategy for classes. short|long', 'short')
+            new InputOption('naming-strategy', null, InputOption::VALUE_REQUIRED, 'The naming strategy for classes. short|long', 'short'),
+            new InputOption('do-enums', null, InputOption::VALUE_OPTIONAL, 'Build classes for enumeration simpletypes. yes|no', 'no')
         ));
     }
 
     /**
      */
-    protected abstract function getConverterter(NamingStrategy $naming);
+    protected abstract function getConverter(NamingStrategy $naming, $buildEnumClasses);
 
     /**
      *
@@ -59,8 +60,9 @@ abstract class AbstractConvert extends Console\Command\Command
         } else {
             throw new \InvalidArgumentException("Unsupported naming strategy");
         }
-
-        $converter = $this->getConverterter($naming);
+        
+        $buildEnumClasses = $input->getOption("do-enums") == 'yes';
+        $converter = $this->getConverter($naming, $buildEnumClasses);
 
         $nsMapKeyed = array();
         $output->writeln("Namespaces:");

@@ -24,9 +24,9 @@ class ConvertToPHP extends AbstractConvert
         $this->setDescription('Convert XSD definitions into PHP classes');
     }
 
-    protected function getConverterter(NamingStrategy $naming)
+    protected function getConverter(NamingStrategy $naming, $buildEnumClasses)
     {
-        return new PhpConverter($naming);
+        return new PhpConverter($naming, $buildEnumClasses);
     }
 
     protected function convert(AbstractConverter $converter, array $schemas, array $targets, OutputInterface $output)

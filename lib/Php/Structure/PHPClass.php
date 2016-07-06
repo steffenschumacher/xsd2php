@@ -239,4 +239,15 @@ class PHPClass
         $this->abstract = (boolean)$abstract;
         return $this;
     }
+
+    public function addConstant($constantName, $constantValue) 
+    {
+        $this->constants[] = new PhpConstant($constantName, $constantValue);
+        return $this;
+    }
+
+    public function getConstants() 
+    {
+        return $this->constants;
+    }
 }
